@@ -82,7 +82,7 @@ def model_with_weights(model, weights, skip_mismatch):
 
 NMS_THRESHOLD = 0.5
 def create_models(backbone_retinanet, num_classes, weights, multi_gpu=0, freeze_backbone=False, config=None,
-                  nms=NMS_THRESHOLD):
+                  nms_threshold=NMS_THRESHOLD):
     """ Creates three models (model, training_model, prediction_model).
 
     Args
@@ -121,7 +121,8 @@ def create_models(backbone_retinanet, num_classes, weights, multi_gpu=0, freeze_
         training_model = model
 
     # make prediction model
-    prediction_model = retinanet_bbox(model=model, anchor_params=anchor_params, nms=nms)
+    print('nms threshold: {}'.format(nms_threshold))
+    prediction_model = retinanet_bbox(model=model, anchor_params=anchor_params, nms_threshold=nms_threshold)
 
     # compile model
     training_model.compile(
