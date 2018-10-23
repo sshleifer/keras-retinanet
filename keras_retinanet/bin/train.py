@@ -80,8 +80,9 @@ def model_with_weights(model, weights, skip_mismatch):
         model.load_weights(weights, by_name=True, skip_mismatch=skip_mismatch)
     return model
 
-
-def create_models(backbone_retinanet, num_classes, weights, multi_gpu=0, freeze_backbone=False, config=None):
+NMS_THRESHOLD = 0.5
+def create_models(backbone_retinanet, num_classes, weights, multi_gpu=0, freeze_backbone=False, config=None,
+                  nms=NMS_THRESHOLD):
     """ Creates three models (model, training_model, prediction_model).
 
     Args
@@ -91,6 +92,7 @@ def create_models(backbone_retinanet, num_classes, weights, multi_gpu=0, freeze_
         multi_gpu          : The number of GPUs to use for training.
         freeze_backbone    : If True, disables learning for the backbone.
         config             : Config parameters, None indicates the default configuration.
+        nms                : passed to inference only
 
     Returns
         model            : The base model. This is also the model that is saved in snapshots.
@@ -108,14 +110,15 @@ def create_models(backbone_retinanet, num_classes, weights, multi_gpu=0, freeze_
             model = model_with_weights(backbone_retinanet(num_classes, modifier=modifier), weights=weights, skip_mismatch=True)
         training_model = multi_gpu_model(model, gpus=multi_gpu)
     else:
-        model          = model_with_weights(backbone_retinanet(num_classes, modifier=modifier), weights=weights, skip_mismatch=True)
+        model          = model_with_weights(backbone_retinanet(num_classes, modifier=modifier), weights=weights,
+                                            skip_mismatch=True)
         training_model = model
 
     # make prediction model
     anchor_params = None
     if config and 'anchor_parameters' in config:
         anchor_params = parse_anchor_parameters(config)
-    prediction_model = retinanet_bbox(model=model, anchor_params=anchor_params)
+    prediction_model = retinanet_bbox(model=model, anchor_params=anchor_params, nms=nms)
 
     # compile model
     training_model.compile(

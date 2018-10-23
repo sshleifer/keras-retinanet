@@ -16,7 +16,7 @@ limitations under the License.
 
 import keras
 from .. import backend
-
+NMS_THRESHOLD = 0.5
 
 def filter_detections(
     boxes,
@@ -26,7 +26,7 @@ def filter_detections(
     nms                   = True,
     score_threshold       = 0.05,
     max_detections        = 300,
-    nms_threshold         = 0.5
+    nms_threshold         = NMS_THRESHOLD,
 ):
     """ Filter detections using the boxes and classification values.
 
@@ -120,7 +120,7 @@ class FilterDetections(keras.layers.Layer):
         self,
         nms                   = True,
         class_specific_filter = True,
-        nms_threshold         = 0.5,
+        nms_threshold         = NMS_THRESHOLD,
         score_threshold       = 0.05,
         max_detections        = 300,
         parallel_iterations   = 32,
