@@ -18,6 +18,7 @@ import keras
 from .. import initializers
 from .. import layers
 from ..utils.anchors import AnchorParameters
+from . import assert_training_model
 
 
 def default_classification_model(
@@ -63,7 +64,7 @@ def default_classification_model(
 
     outputs = keras.layers.Conv2D(
         filters=num_classes * num_anchors,
-        kernel_initializer=keras.initializers.zeros(),
+        kernel_initializer=keras.initializers.normal(mean=0.0, stddev=0.01, seed=None),
         bias_initializer=initializers.PriorProbability(probability=prior_probability),
         name='pyramid_classification',
         **options
@@ -78,10 +79,11 @@ def default_classification_model(
     return keras.models.Model(inputs=inputs, outputs=outputs, name=name)
 
 
-def default_regression_model(num_anchors, pyramid_feature_size=256, regression_feature_size=256, name='regression_submodel'):
+def default_regression_model(num_values, num_anchors, pyramid_feature_size=256, regression_feature_size=256, name='regression_submodel'):
     """ Creates the default regression submodel.
 
     Args
+        num_values              : Number of values to regress.
         num_anchors             : Number of anchors to regress for each feature level.
         pyramid_feature_size    : The number of filters to expect from the feature pyramid levels.
         regression_feature_size : The number of filters to use in the layers in the regression submodel.
@@ -114,10 +116,10 @@ def default_regression_model(num_anchors, pyramid_feature_size=256, regression_f
             **options
         )(outputs)
 
-    outputs = keras.layers.Conv2D(num_anchors * 4, name='pyramid_regression', **options)(outputs)
+    outputs = keras.layers.Conv2D(num_anchors * num_values, name='pyramid_regression', **options)(outputs)
     if keras.backend.image_data_format() == 'channels_first':
         outputs = keras.layers.Permute((2, 3, 1), name='pyramid_regression_permute')(outputs)
-    outputs = keras.layers.Reshape((-1, 4), name='pyramid_regression_reshape')(outputs)
+    outputs = keras.layers.Reshape((-1, num_values), name='pyramid_regression_reshape')(outputs)
 
     return keras.models.Model(inputs=inputs, outputs=outputs, name=name)
 
@@ -173,7 +175,7 @@ def default_submodels(num_classes, num_anchors):
         A list of tuple, where the first element is the name of the submodel and the second element is the submodel itself.
     """
     return [
-        ('regression', default_regression_model(num_anchors)),
+        ('regression', default_regression_model(4, num_anchors)),
         ('classification', default_classification_model(num_classes, num_anchors))
     ]
 
@@ -237,7 +239,7 @@ def retinanet(
     inputs,
     backbone_layers,
     num_classes,
-    num_anchors             = 9,
+    num_anchors             = None,
     create_pyramid_features = __create_pyramid_features,
     submodels               = None,
     name                    = 'retinanet'
@@ -264,6 +266,10 @@ def retinanet(
         ]
         ```
     """
+
+    if num_anchors is None:
+        num_anchors = AnchorParameters.default.num_anchors()
+
     if submodels is None:
         submodels = default_submodels(num_classes, num_anchors)
 
@@ -317,6 +323,8 @@ def retinanet_bbox(
     # create RetinaNet model
     if model is None:
         model = retinanet(num_anchors=anchor_params.num_anchors(), **kwargs)
+    else:
+        assert_training_model(model)
 
     # compute the anchors
     features = [model.get_layer(p_name).output for p_name in ['P3', 'P4', 'P5', 'P6', 'P7']]
@@ -340,7 +348,5 @@ def retinanet_bbox(
         name                  = 'filtered_detections'
     )([boxes, classification] + other)
 
-    outputs = detections
-
     # construct the model
-    return keras.models.Model(inputs=model.inputs, outputs=outputs, name=name)
+    return keras.models.Model(inputs=model.inputs, outputs=detections, name=name)
